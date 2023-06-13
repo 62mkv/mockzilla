@@ -17,10 +17,31 @@ fn main() {
            log.info("assertions go here");
         }
 
+        @CanHaveAllTheOtherAnnotations
+        void testSomething2() {
+            new Expectations() {{
+             mock1.mockMethod1(arg1, arg2);
+             result = Mono.just("weird");
+
+             mock2.mockMethod2(arg1, arg2);
+             result = new RuntimeException("some reason");
+            }};
+        }
 
         @Test
-        void testSomething2() {
+        void testNoExpectations() {
         }
+
+        void notATest() {
+            new Expectations() {{
+             mock1.mockMethod1(arg1, arg2);
+             result = Mono.just("weird");
+
+             mock2.mockMethod2(arg1, arg2);
+             result = new RuntimeException("some reason");
+            }};
+        }
+
     }
 "#;
 
@@ -33,11 +54,17 @@ fn main() {
     let mut query_cursor = QueryCursor::new();
 
     let query = Query::new(java, r#"
-(class_body
-  (method_declaration (modifiers (marker_annotation name: (identifier) @annotation (#eq? @annotation "Test")))
-    name: (identifier) @the-method-name))
-    body: (block (expression_statement)* (expression_statement (object_creation_expression type: (type_identifier) @type-name)) (expression_statement)*)
+(method_declaration (modifiers (marker_annotation name: (identifier) @annotation (#matches? @annotation "^\w*Test")))
+  name: (identifier) @the-method-name
+  (block (expression_statement)* (expression_statement (object_creation_expression type: (type_identifier) @type-name (#eq? @type-name "Expectations"))) (expression_statement)*)
+)
     "#).expect("trying to build a query");
+    //
+    //()
+    println!("Query pattern count: {}", query.pattern_count());
+    for i in 0..query.pattern_count() {
+        println!("Query pattern {}: {}", i, query.start_byte_for_pattern(i));
+    }
     for my_match in query_cursor.matches(&query, parsed.root_node(), code.as_bytes()) {
         println!("Match with index #{}: ", my_match.pattern_index);
         for capture in my_match.captures.iter() {
