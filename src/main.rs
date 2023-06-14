@@ -4,8 +4,8 @@ fn main() {
     let code = r#"
     class Test {
 
-        @ParametrizedTest
-        void testSomething() {
+        @Test
+        void shouldMatch() {
            log.info("some initialization");
             new Expectations() {{
              mock1.mockMethod1(arg1, arg2);
@@ -18,7 +18,22 @@ fn main() {
         }
 
         @CanHaveAllTheOtherAnnotations
-        void testSomething2() {
+        @ParametrizedTest(value = "xxx")
+        @CanHaveAllTheOtherAnnotations(withParameters = true)
+        void shouldMatch() {
+           log.info("some initialization");
+            new Expectations() {{
+             mock1.mockMethod1(arg1, arg2);
+             result = Mono.just("weird");
+
+             mock2.mockMethod2(arg1, arg2);
+             result = new RuntimeException("some reason");
+            }};
+           log.info("assertions go here");
+        }
+
+        @CanHaveAllTheOtherAnnotations
+        void shouldNotMatch() {
             new Expectations() {{
              mock1.mockMethod1(arg1, arg2);
              result = Mono.just("weird");
@@ -29,10 +44,12 @@ fn main() {
         }
 
         @Test
-        void testNoExpectations() {
+        void shouldNotMatch() {
+         new _Expectations() {{
+         }};
         }
 
-        void notATest() {
+        void shouldNotMatch() {
             new Expectations() {{
              mock1.mockMethod1(arg1, arg2);
              result = Mono.just("weird");
@@ -54,8 +71,14 @@ fn main() {
     let mut query_cursor = QueryCursor::new();
 
     let query = Query::new(java, r#"
-(method_declaration (modifiers (marker_annotation name: (identifier) @annotation (#matches? @annotation "^\w*Test")))
-  name: (identifier) @the-method-name
+(method_declaration
+  (modifiers
+   [
+    (marker_annotation name: (identifier) @marker-annotation (#match? @marker-annotation "^[A-Za-z]*Test$"))
+    (annotation name: (identifier) @annotation (#match? @annotation "^[A-Za-z]*Test$"))
+   ]
+  )
+  name: (identifier) @method
   (block (expression_statement)* (expression_statement (object_creation_expression type: (type_identifier) @type-name (#eq? @type-name "Expectations"))) (expression_statement)*)
 )
     "#).expect("trying to build a query");
@@ -77,10 +100,6 @@ fn main() {
                 "\t[Line: {}, Col: {}] Capture `{}` with index {} is `{}` with node {:?}",
                 line, col, query.capture_names()[capture.index as usize], capture.index, text, node
             );
-
-            if capture.index == 1 {
-                println!("{:?}", node.parent().unwrap());
-            }
         }
     }
 
